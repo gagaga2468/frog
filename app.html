@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>比特币贪婪恐慌指数</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f7fb;
+        --card: #ffffff;
+        --text: #1e1f24;
+        --muted: #6b7280;
+        --accent: #f7931a;
+        --gauge-track: #e5e7eb;
+        --shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 16px;
+      }
+
+      .card {
+        width: min(720px, 100%);
+        background: var(--card);
+        border-radius: 24px;
+        padding: 32px;
+        box-shadow: var(--shadow);
+        display: grid;
+        gap: 24px;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      header h1 {
+        font-size: 1.8rem;
+      }
+
+      header p {
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .badge {
+        background: rgba(247, 147, 26, 0.15);
+        color: var(--accent);
+        font-weight: 600;
+        padding: 6px 14px;
+        border-radius: 999px;
+        font-size: 0.85rem;
+      }
+
+      .gauge-wrap {
+        display: grid;
+        place-items: center;
+      }
+
+      .gauge {
+        width: 320px;
+        height: 160px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .gauge::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 320px 320px 0 0;
+        background: var(--gauge-track);
+      }
+
+      .gauge-fill {
+        position: absolute;
+        inset: 0;
+        border-radius: 320px 320px 0 0;
+        background: conic-gradient(
+          from 180deg,
+          #10b981 0deg,
+          #facc15 60deg,
+          #f97316 110deg,
+          #ef4444 180deg
+        );
+        clip-path: inset(0 0 50% 0);
+      }
+
+      .needle {
+        position: absolute;
+        width: 4px;
+        height: 140px;
+        background: var(--text);
+        left: 50%;
+        bottom: 0;
+        transform-origin: bottom center;
+        transform: translateX(-50%) rotate(-90deg);
+        transition: transform 0.8s ease;
+        border-radius: 4px;
+      }
+
+      .needle::after {
+        content: "";
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        background: var(--text);
+        border-radius: 50%;
+        left: 50%;
+        bottom: -8px;
+        transform: translateX(-50%);
+      }
+
+      .score {
+        text-align: center;
+        margin-top: 12px;
+      }
+
+      .score strong {
+        font-size: 2.6rem;
+      }
+
+      .score span {
+        display: block;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+
+      .status {
+        display: grid;
+        gap: 12px;
+      }
+
+      .status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        background: #f9fafb;
+        border-radius: 14px;
+        font-size: 0.95rem;
+      }
+
+      .status-row span:last-child {
+        font-weight: 600;
+      }
+
+      footer {
+        color: var(--muted);
+        font-size: 0.85rem;
+        line-height: 1.4;
+      }
+
+      @media (max-width: 600px) {
+        .card {
+          padding: 24px 20px;
+        }
+
+        .gauge {
+          width: 260px;
+          height: 130px;
+        }
+
+        .needle {
+          height: 115px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card" aria-live="polite">
+      <header>
+        <div>
+          <h1>比特币贪婪恐慌指数</h1>
+          <p>每日更新 · 来自 Alternative.me Fear &amp; Greed Index</p>
+        </div>
+        <div class="badge" id="updateTime">更新中...</div>
+      </header>
+
+      <section class="gauge-wrap">
+        <div class="gauge" aria-hidden="true">
+          <div class="gauge-fill"></div>
+          <div class="needle" id="needle"></div>
+        </div>
+        <div class="score">
+          <strong id="scoreValue">--</strong>
+          <span id="scoreText">获取数据中...</span>
+        </div>
+      </section>
+
+      <section class="status">
+        <div class="status-row">
+          <span>指标含义</span>
+          <span id="scoreMeaning">--</span>
+        </div>
+        <div class="status-row">
+          <span>每日更新</span>
+          <span>北京时间 08:00 左右</span>
+        </div>
+        <div class="status-row">
+          <span>数据来源</span>
+          <span>Alternative.me</span>
+        </div>
+      </section>
+
+      <footer>
+        提示：指数范围 0-100，数值越低代表市场恐慌，数值越高代表市场贪婪。
+      </footer>
+    </main>
+
+    <script>
+      const API_URL = "https://api.alternative.me/fng/?limit=1&format=json";
+      const needle = document.getElementById("needle");
+      const scoreValue = document.getElementById("scoreValue");
+      const scoreText = document.getElementById("scoreText");
+      const scoreMeaning = document.getElementById("scoreMeaning");
+      const updateTime = document.getElementById("updateTime");
+
+      const toCnText = (value) => {
+        if (value <= 24) return "极度恐慌";
+        if (value <= 44) return "恐慌";
+        if (value <= 54) return "中性";
+        if (value <= 74) return "贪婪";
+        return "极度贪婪";
+      };
+
+      const formatDate = (unixTime) => {
+        const date = new Date(Number(unixTime) * 1000);
+        return date.toLocaleDateString("zh-CN", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        });
+      };
+
+      const updateGauge = (value) => {
+        const clamped = Math.max(0, Math.min(100, value));
+        const angle = (clamped / 100) * 180 - 90;
+        needle.style.transform = `translateX(-50%) rotate(${angle}deg)`;
+        scoreValue.textContent = clamped.toString();
+        const label = toCnText(clamped);
+        scoreText.textContent = label;
+        scoreMeaning.textContent = `${label} (${clamped})`;
+      };
+
+      const loadIndex = async () => {
+        try {
+          const response = await fetch(API_URL, { cache: "no-store" });
+          if (!response.ok) throw new Error("请求失败");
+          const data = await response.json();
+          const current = data.data?.[0];
+          if (!current) throw new Error("无数据");
+          updateGauge(Number(current.value));
+          updateTime.textContent = `更新日期 ${formatDate(current.timestamp)}`;
+        } catch (error) {
+          scoreText.textContent = "数据获取失败，请稍后重试";
+          updateTime.textContent = "未能更新";
+        }
+      };
+
+      loadIndex();
+    </script>
+  </body>
+</html>
